@@ -96,7 +96,7 @@ if menu == "View Clusters":
     st.subheader("🔍 Dataset Preview")
     st.dataframe(df.head())
 
-    st.subheader("📊 Cluster Distribution (Donut Chart)")
+    st.subheader("📊 Cluster Distribution ")
     plot_donut(df["Final_Cluster"], "Customer Distribution Across Clusters")
 
     st.subheader("📌 Cluster Details & Recommendations")

@@ -12,6 +12,16 @@ st.set_page_config(page_title="Customer Segmentation", layout="wide")
 st.title("📊 Customer Segmentation using K-Means Clustering")
 
 # ----------------------------------------------------
+# Cluster meanings (BUSINESS INTERPRETATION)
+# ----------------------------------------------------
+CLUSTER_MEANINGS = {
+    0: "Low income, low spending, less active customers",
+    1: "High income, high spending, loyal customers",
+    2: "Medium income, moderate spending, regular customers",
+    3: "High income but low spending, potential customers"
+}
+
+# ----------------------------------------------------
 # Load data and models
 # ----------------------------------------------------
 @st.cache_data
@@ -78,9 +88,16 @@ if menu == "View Clusters":
     st.pyplot(fig2)
 
 # ====================================================
-# OPTION 2 — SINGLE CUSTOMER PREDICTION (FIXED)
+# OPTION 2 — SINGLE CUSTOMER PREDICTION
 # ====================================================
 elif menu == "Predict Customer Cluster":
+
+    # ---- Show cluster meanings first ----
+    st.subheader("📌 Cluster Definitions")
+    for k, v in CLUSTER_MEANINGS.items():
+        st.markdown(f"**Cluster {k}:** {v}")
+
+    st.markdown("---")
 
     st.subheader("🧍 Enter Customer Details")
 
@@ -93,7 +110,7 @@ elif menu == "Predict Customer Cluster":
 
     if st.button("Predict Cluster"):
 
-        # EXACT same feature count used in training (6 features)
+        # EXACT same features used during training (6 features)
         X_input = np.array([[
             np.log1p(income),
             age,
@@ -105,8 +122,12 @@ elif menu == "Predict Customer Cluster":
 
         X_scaled = scaler.transform(X_input)
         cluster = int(kmeans.predict(X_scaled)[0])
+        cluster_desc = CLUSTER_MEANINGS.get(cluster, "Description not available")
 
-        st.success(f"🎯 Customer belongs to **Cluster {cluster}**")
+        st.success(
+            f"🎯 **Customer belongs to Cluster {cluster}**\n\n"
+            f"📌 **Cluster Meaning:** {cluster_desc}"
+        )
 
 # ====================================================
 # OPTION 3 — CSV / EXCEL UPLOAD FOR BULK PREDICTION
@@ -150,6 +171,7 @@ elif menu == "Upload CSV/Excel for Prediction":
 
             X_scaled = scaler.transform(X_new)
             new_df['Predicted_Cluster'] = kmeans.predict(X_scaled)
+            new_df['Cluster_Meaning'] = new_df['Predicted_Cluster'].map(CLUSTER_MEANINGS)
 
             st.success("✅ Clusters assigned successfully")
             st.dataframe(new_df.head())
@@ -169,4 +191,3 @@ elif menu == "Upload CSV/Excel for Prediction":
 st.markdown("---")
 st.write("🚀 Deployed using Streamlit Cloud & GitHub")
 st.write("📌 Final Model: K-Means Clustering")
-

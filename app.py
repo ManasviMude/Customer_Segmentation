@@ -24,6 +24,20 @@ kmeans = joblib.load("kmeans_model.pkl")
 scaler = joblib.load("scaler.pkl")
 
 # ----------------------------------------------------
+# Ensure required columns exist (DEFENSIVE CODING)
+# ----------------------------------------------------
+
+# Create TotalSpending if missing
+if 'TotalSpending' not in df.columns:
+    spend_cols = [c for c in df.columns if c.startswith('Mnt')]
+    if len(spend_cols) > 0:
+        df['TotalSpending'] = df[spend_cols].sum(axis=1)
+
+# Ensure Final_Cluster exists
+if 'Final_Cluster' not in df.columns and 'KMeans_Cluster' in df.columns:
+    df['Final_Cluster'] = df['KMeans_Cluster']
+
+# ----------------------------------------------------
 # Sidebar menu
 # ----------------------------------------------------
 st.sidebar.title("🔧 Menu")
@@ -54,20 +68,30 @@ if menu == "View Clusters":
         'NumCatalogPurchases'
     ]
     profile_cols = [c for c in profile_cols if c in df.columns]
-    cluster_profile = df.groupby('Final_Cluster')[profile_cols].mean().round(2)
-    st.dataframe(cluster_profile)
+
+    if len(profile_cols) > 0:
+        cluster_profile = df.groupby('Final_Cluster')[profile_cols].mean().round(2)
+        st.dataframe(cluster_profile)
+    else:
+        st.warning("⚠️ No numeric columns available for cluster profiling.")
 
     st.subheader("💰 Income Distribution by Cluster")
-    fig1, ax1 = plt.subplots()
-    sns.boxplot(x='Final_Cluster', y='Income', data=df, ax=ax1)
-    ax1.set_title("Income Distribution by Final Cluster")
-    st.pyplot(fig1)
+    if 'Income' in df.columns:
+        fig1, ax1 = plt.subplots()
+        sns.boxplot(x='Final_Cluster', y='Income', data=df, ax=ax1)
+        ax1.set_title("Income Distribution by Final Cluster")
+        st.pyplot(fig1)
+    else:
+        st.warning("⚠️ Income column not available.")
 
     st.subheader("🛒 Total Spending by Cluster")
-    fig2, ax2 = plt.subplots()
-    sns.boxplot(x='Final_Cluster', y='TotalSpending', data=df, ax=ax2)
-    ax2.set_title("Total Spending by Final Cluster")
-    st.pyplot(fig2)
+    if 'TotalSpending' in df.columns:
+        fig2, ax2 = plt.subplots()
+        sns.boxplot(x='Final_Cluster', y='TotalSpending', data=df, ax=ax2)
+        ax2.set_title("Total Spending by Final Cluster")
+        st.pyplot(fig2)
+    else:
+        st.warning("⚠️ TotalSpending column not available.")
 
 # ====================================================
 # OPTION 2 — SINGLE CUSTOMER PREDICTION
@@ -153,7 +177,6 @@ elif menu == "Upload CSV for Prediction":
                 file_name="clustered_customers.csv",
                 mime="text/csv"
             )
-
         else:
             st.error("❌ Uploaded CSV is missing required columns.")
 
@@ -161,5 +184,5 @@ elif menu == "Upload CSV for Prediction":
 # Footer
 # ----------------------------------------------------
 st.markdown("---")
-st.write("🚀 Deployed using Streamlit Cloud")
+st.write("🚀 Deployed using Streamlit Cloud & GitHub")
 st.write("📌 Final Model: K-Means Clustering")

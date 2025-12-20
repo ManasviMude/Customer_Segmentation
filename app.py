@@ -33,7 +33,7 @@ kmeans = joblib.load("kmeans_model.pkl")
 scaler = joblib.load("scaler.pkl")
 
 # ----------------------------------------------------
-# Prepare visualization columns
+# Prepare columns
 # ----------------------------------------------------
 if 'Final_Cluster' not in df.columns and 'KMeans_Cluster' in df.columns:
     df['Final_Cluster'] = df['KMeans_Cluster']
@@ -42,6 +42,23 @@ if 'TotalSpending' not in df.columns:
     spend_cols = [c for c in df.columns if c.startswith('Mnt')]
     if spend_cols:
         df['TotalSpending'] = df[spend_cols].sum(axis=1)
+
+# ----------------------------------------------------
+# Helper function: Pie chart
+# ----------------------------------------------------
+def plot_pie(series, title):
+    fig, ax = plt.subplots()
+    counts = series.value_counts().sort_index()
+    ax.pie(
+        counts,
+        labels=[f"Cluster {i}" for i in counts.index],
+        autopct='%1.1f%%',
+        startangle=90,
+        wedgeprops={'edgecolor': 'white'}
+    )
+    ax.set_title(title)
+    ax.axis('equal')
+    st.pyplot(fig)
 
 # ----------------------------------------------------
 # Sidebar
@@ -53,29 +70,30 @@ menu = st.sidebar.radio(
 )
 
 # ====================================================
-# VIEW CLUSTERS
+# 1️⃣ VIEW CLUSTERS
 # ====================================================
 if menu == "View Clusters":
 
+    st.subheader("🔍 Dataset Preview")
     st.dataframe(df.head())
 
-    st.subheader("📈 Cluster Distribution")
-    st.bar_chart(df['Final_Cluster'].value_counts().sort_index())
+    st.subheader("📊 Cluster Distribution (Percentage View)")
+    plot_pie(df['Final_Cluster'], "Customer Distribution Across Clusters")
+
+    st.subheader("📌 Cluster Meanings")
+    for k, v in CLUSTER_MEANINGS.items():
+        st.markdown(f"**Cluster {k}:** {v}")
 
     st.subheader("📊 Cluster Profile")
-    cols = [
+    profile_cols = [
         'Income','TotalSpending','Age','Recency',
         'NumWebPurchases','NumStorePurchases','NumCatalogPurchases'
     ]
-    cols = [c for c in cols if c in df.columns]
-    st.dataframe(df.groupby('Final_Cluster')[cols].mean().round(2))
-
-    fig, ax = plt.subplots()
-    sns.boxplot(x='Final_Cluster', y='Income', data=df, ax=ax)
-    st.pyplot(fig)
+    profile_cols = [c for c in profile_cols if c in df.columns]
+    st.dataframe(df.groupby('Final_Cluster')[profile_cols].mean().round(2))
 
 # ====================================================
-# SINGLE CUSTOMER PREDICTION
+# 2️⃣ SINGLE CUSTOMER PREDICTION
 # ====================================================
 elif menu == "Predict Customer Cluster":
 
@@ -84,6 +102,8 @@ elif menu == "Predict Customer Cluster":
         st.markdown(f"**Cluster {k}:** {v}")
 
     st.markdown("---")
+
+    st.subheader("🧍 Enter Customer Details")
 
     income = st.number_input("Income", min_value=0.0)
     age = st.number_input("Age", min_value=18)
@@ -107,12 +127,20 @@ elif menu == "Predict Customer Cluster":
         cluster = int(kmeans.predict(X_scaled)[0])
 
         st.success(
-            f"🎯 Customer belongs to **Cluster {cluster}**\n\n"
-            f"📌 **Meaning:** {CLUSTER_MEANINGS.get(cluster)}"
+            f"🎯 **Customer belongs to Cluster {cluster}**\n\n"
+            f"📌 **Cluster Meaning:** {CLUSTER_MEANINGS.get(cluster)}"
         )
 
+        # Pie chart showing where customer falls
+        temp_df = df.copy()
+        temp_df.loc[len(temp_df)] = np.nan
+        temp_df.at[len(temp_df)-1, 'Final_Cluster'] = cluster
+
+        st.subheader("📊 Cluster Position Visualization")
+        plot_pie(temp_df['Final_Cluster'], "Customer Position Among All Clusters")
+
 # ====================================================
-# ENHANCED CSV / EXCEL UPLOAD (NEW FEATURES)
+# 3️⃣ CSV / EXCEL UPLOAD
 # ====================================================
 elif menu == "Upload CSV/Excel for Prediction":
 
@@ -131,20 +159,18 @@ elif menu == "Upload CSV/Excel for Prediction":
         st.subheader("📄 Uploaded Data Preview")
         st.dataframe(new_df.head())
 
-        st.subheader("🔧 Map Columns (works for any dataset)")
+        st.subheader("🔧 Map Columns")
+        cols = new_df.columns.tolist()
 
-        col_list = new_df.columns.tolist()
-
-        income_col = st.selectbox("Select Income column", col_list)
-        age_col = st.selectbox("Select Age column", col_list)
-        recency_col = st.selectbox("Select Recency column", col_list)
-        web_col = st.selectbox("Select Web Purchases column", col_list)
-        store_col = st.selectbox("Select Store Purchases column", col_list)
-        catalog_col = st.selectbox("Select Catalog Purchases column", col_list)
+        income_col = st.selectbox("Income Column", cols)
+        age_col = st.selectbox("Age Column", cols)
+        recency_col = st.selectbox("Recency Column", cols)
+        web_col = st.selectbox("Web Purchases Column", cols)
+        store_col = st.selectbox("Store Purchases Column", cols)
+        catalog_col = st.selectbox("Catalog Purchases Column", cols)
 
         if st.button("Run Clustering"):
 
-            # Select and rename
             model_df = new_df[[income_col, age_col, recency_col,
                                 web_col, store_col, catalog_col]].copy()
 
@@ -153,7 +179,6 @@ elif menu == "Upload CSV/Excel for Prediction":
                 'NumWebPurchases','NumStorePurchases','NumCatalogPurchases'
             ]
 
-            # Handle missing values
             model_df = model_df.fillna(model_df.median(numeric_only=True))
 
             X_new = np.column_stack([
@@ -169,7 +194,11 @@ elif menu == "Upload CSV/Excel for Prediction":
             new_df['Predicted_Cluster'] = kmeans.predict(X_scaled)
             new_df['Cluster_Meaning'] = new_df['Predicted_Cluster'].map(CLUSTER_MEANINGS)
 
-            st.success("✅ Clustering completed successfully")
+            st.success("✅ Clustering Completed")
+
+            st.subheader("📊 Cluster Distribution (Uploaded Data)")
+            plot_pie(new_df['Predicted_Cluster'], "Cluster Distribution of Uploaded Dataset")
+
             st.dataframe(new_df.head())
 
             st.download_button(

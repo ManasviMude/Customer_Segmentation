@@ -84,16 +84,25 @@ if menu == "View Clusters":
     for k, v in CLUSTER_MEANINGS.items():
         st.markdown(f"**Cluster {k}:** {v}")
 
-    st.subheader("📊 Cluster Profile")
+    st.subheader("📊 Cluster Profile (INR)")
     profile_cols = [
         'Income','TotalSpending','Age','Recency',
         'NumWebPurchases','NumStorePurchases','NumCatalogPurchases'
     ]
     profile_cols = [c for c in profile_cols if c in df.columns]
-    st.dataframe(df.groupby('Final_Cluster')[profile_cols].mean().round(2))
+
+    profile_df = df.groupby('Final_Cluster')[profile_cols].mean().round(2)
+
+    # Rename for INR display
+    if 'Income' in profile_df.columns:
+        profile_df.rename(columns={'Income': 'Income (₹)'}, inplace=True)
+    if 'TotalSpending' in profile_df.columns:
+        profile_df.rename(columns={'TotalSpending': 'Total Spending (₹)'}, inplace=True)
+
+    st.dataframe(profile_df)
 
 # ====================================================
-# 2️⃣ SINGLE CUSTOMER PREDICTION
+# 2️⃣ PREDICT CUSTOMER CLUSTER (NO PIE CHART HERE)
 # ====================================================
 elif menu == "Predict Customer Cluster":
 
@@ -103,11 +112,11 @@ elif menu == "Predict Customer Cluster":
 
     st.markdown("---")
 
-    st.subheader("🧍 Enter Customer Details")
+    st.subheader("🧍 Enter Customer Details (INR)")
 
-    income = st.number_input("Income", min_value=0.0)
+    income = st.number_input("Income (₹)", min_value=0.0)
     age = st.number_input("Age", min_value=18)
-    recency = st.number_input("Recency", min_value=0)
+    recency = st.number_input("Recency (days since last purchase)", min_value=0)
     web = st.number_input("Web Purchases", min_value=0)
     store = st.number_input("Store Purchases", min_value=0)
     catalog = st.number_input("Catalog Purchases", min_value=0)
@@ -130,14 +139,6 @@ elif menu == "Predict Customer Cluster":
             f"🎯 **Customer belongs to Cluster {cluster}**\n\n"
             f"📌 **Cluster Meaning:** {CLUSTER_MEANINGS.get(cluster)}"
         )
-
-        # Pie chart showing where customer falls
-        temp_df = df.copy()
-        temp_df.loc[len(temp_df)] = np.nan
-        temp_df.at[len(temp_df)-1, 'Final_Cluster'] = cluster
-
-        st.subheader("📊 Cluster Position Visualization")
-        plot_pie(temp_df['Final_Cluster'], "Customer Position Among All Clusters")
 
 # ====================================================
 # 3️⃣ CSV / EXCEL UPLOAD
@@ -162,7 +163,7 @@ elif menu == "Upload CSV/Excel for Prediction":
         st.subheader("🔧 Map Columns")
         cols = new_df.columns.tolist()
 
-        income_col = st.selectbox("Income Column", cols)
+        income_col = st.selectbox("Income Column (₹)", cols)
         age_col = st.selectbox("Age Column", cols)
         recency_col = st.selectbox("Recency Column", cols)
         web_col = st.selectbox("Web Purchases Column", cols)
@@ -196,7 +197,7 @@ elif menu == "Upload CSV/Excel for Prediction":
 
             st.success("✅ Clustering Completed")
 
-            st.subheader("📊 Cluster Distribution (Uploaded Data)")
+            st.subheader("📊 Cluster Distribution (Uploaded Dataset)")
             plot_pie(new_df['Predicted_Cluster'], "Cluster Distribution of Uploaded Dataset")
 
             st.dataframe(new_df.head())

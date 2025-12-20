@@ -6,13 +6,13 @@ import matplotlib.pyplot as plt
 import joblib
 
 # ----------------------------------------------------
-# Page configuration
+# Page config
 # ----------------------------------------------------
 st.set_page_config(page_title="Customer Segmentation", layout="wide")
 st.title("📊 Customer Segmentation using K-Means Clustering")
 
 # ----------------------------------------------------
-# FEATURE ORDER (MUST MATCH TRAINING)
+# FEATURE ORDER (EXACT TRAINING ORDER)
 # ----------------------------------------------------
 FEATURE_COLUMNS = [
     'Income_log',
@@ -25,32 +25,29 @@ FEATURE_COLUMNS = [
 ]
 
 # ----------------------------------------------------
-# Load data and models
+# Load data & models
 # ----------------------------------------------------
 @st.cache_data
 def load_data():
     return pd.read_csv("final_customer_segmentation_output.csv")
 
 df = load_data()
-
 kmeans = joblib.load("kmeans_model.pkl")
 scaler = joblib.load("scaler.pkl")
 
 # ----------------------------------------------------
-# Defensive feature engineering
+# Defensive feature creation
 # ----------------------------------------------------
-# Create TotalSpending if missing
 if 'TotalSpending' not in df.columns:
-    spend_cols = [c for c in df.columns if c.startswith('Mnt')]
+    spend_cols = [c for c in df.columns if c.startswith("Mnt")]
     if spend_cols:
         df['TotalSpending'] = df[spend_cols].sum(axis=1)
 
-# Ensure Final_Cluster exists
 if 'Final_Cluster' not in df.columns and 'KMeans_Cluster' in df.columns:
     df['Final_Cluster'] = df['KMeans_Cluster']
 
 # ----------------------------------------------------
-# Sidebar menu
+# Sidebar
 # ----------------------------------------------------
 st.sidebar.title("🔧 Menu")
 menu = st.sidebar.radio(
@@ -59,75 +56,66 @@ menu = st.sidebar.radio(
 )
 
 # ====================================================
-# OPTION 1 — VIEW CLUSTERS
+# VIEW CLUSTERS
 # ====================================================
 if menu == "View Clusters":
 
-    st.subheader("🔍 Dataset Preview")
     st.dataframe(df.head())
 
     st.subheader("📈 Cluster Distribution")
     st.bar_chart(df['Final_Cluster'].value_counts().sort_index())
 
-    st.subheader("📊 Cluster Profile (Mean Values)")
-    profile_cols = [
-        'Income', 'TotalSpending', 'Age', 'Recency',
-        'NumWebPurchases', 'NumStorePurchases', 'NumCatalogPurchases'
-    ]
-    profile_cols = [c for c in profile_cols if c in df.columns]
-    st.dataframe(df.groupby('Final_Cluster')[profile_cols].mean().round(2))
+    st.subheader("📊 Cluster Profile")
+    cols = ['Income','TotalSpending','Age','Recency',
+            'NumWebPurchases','NumStorePurchases','NumCatalogPurchases']
+    cols = [c for c in cols if c in df.columns]
+    st.dataframe(df.groupby('Final_Cluster')[cols].mean().round(2))
 
-    st.subheader("💰 Income Distribution by Cluster")
-    fig1, ax1 = plt.subplots()
-    sns.boxplot(x='Final_Cluster', y='Income', data=df, ax=ax1)
-    st.pyplot(fig1)
-
-    st.subheader("🛒 Total Spending by Cluster")
-    fig2, ax2 = plt.subplots()
-    sns.boxplot(x='Final_Cluster', y='TotalSpending', data=df, ax=ax2)
-    st.pyplot(fig2)
+    st.subheader("💰 Income by Cluster")
+    fig, ax = plt.subplots()
+    sns.boxplot(x='Final_Cluster', y='Income', data=df, ax=ax)
+    st.pyplot(fig)
 
 # ====================================================
-# OPTION 2 — SINGLE CUSTOMER PREDICTION
+# SINGLE CUSTOMER PREDICTION (FIXED)
 # ====================================================
 elif menu == "Predict Customer Cluster":
 
-    st.subheader("🧍 Enter Customer Details")
-
-    income = st.number_input("Income", min_value=0)
-    total_spending = st.number_input("Total Spending", min_value=0)
+    income = st.number_input("Income", min_value=0.0)
+    total_spending = st.number_input("Total Spending", min_value=0.0)
     age = st.number_input("Age", min_value=18)
-    recency = st.number_input("Recency (days since last purchase)", min_value=0)
+    recency = st.number_input("Recency", min_value=0)
     web = st.number_input("Web Purchases", min_value=0)
     store = st.number_input("Store Purchases", min_value=0)
     catalog = st.number_input("Catalog Purchases", min_value=0)
 
     if st.button("Predict Cluster"):
-        input_data = {
-            'Income_log': np.log1p(income),
-            'TotalSpending': total_spending,
-            'Age': age,
-            'Recency': recency,
-            'NumWebPurchases': web,
-            'NumStorePurchases': store,
-            'NumCatalogPurchases': catalog
-        }
 
-        input_df = pd.DataFrame([input_data])[FEATURE_COLUMNS]
-        input_scaled = scaler.transform(input_df)
-        cluster = kmeans.predict(input_scaled)[0]
+        input_values = [
+            np.log1p(income),
+            total_spending,
+            age,
+            recency,
+            web,
+            store,
+            catalog
+        ]
 
-        st.success(f"🎯 This customer belongs to **Cluster {cluster}**")
+        # Convert to numpy (avoids sklearn feature-name crash)
+        X_input = np.array(input_values, dtype=float).reshape(1, -1)
+
+        X_scaled = scaler.transform(X_input)
+        cluster = int(kmeans.predict(X_scaled)[0])
+
+        st.success(f"🎯 Customer belongs to **Cluster {cluster}**")
 
 # ====================================================
-# OPTION 3 — CSV / EXCEL UPLOAD FOR BULK PREDICTION
+# CSV / EXCEL UPLOAD (FIXED)
 # ====================================================
 elif menu == "Upload CSV/Excel for Prediction":
 
-    st.subheader("📤 Upload CSV or Excel File")
-
     uploaded_file = st.file_uploader(
-        "Upload file",
+        "Upload CSV or Excel file",
         type=["csv", "xlsx"]
     )
 
@@ -139,19 +127,19 @@ elif menu == "Upload CSV/Excel for Prediction":
         else:
             new_df = pd.read_excel(uploaded_file)
 
-        st.subheader("📄 Uploaded Data Preview")
         st.dataframe(new_df.head())
 
-        required_cols = [
-            'Income', 'TotalSpending', 'Age', 'Recency',
-            'NumWebPurchases', 'NumStorePurchases', 'NumCatalogPurchases'
+        required = [
+            'Income','TotalSpending','Age','Recency',
+            'NumWebPurchases','NumStorePurchases','NumCatalogPurchases'
         ]
 
-        if all(col in new_df.columns for col in required_cols):
+        if all(col in new_df.columns for col in required):
 
+            new_df = new_df.copy()
             new_df['Income_log'] = np.log1p(new_df['Income'])
 
-            X_new = new_df[FEATURE_COLUMNS]
+            X_new = new_df[FEATURE_COLUMNS].astype(float).values
             X_scaled = scaler.transform(X_new)
 
             new_df['Predicted_Cluster'] = kmeans.predict(X_scaled)
@@ -159,15 +147,14 @@ elif menu == "Upload CSV/Excel for Prediction":
             st.success("✅ Clusters assigned successfully")
             st.dataframe(new_df.head())
 
-            csv = new_df.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="⬇ Download Clustered File",
-                data=csv,
-                file_name="clustered_customers.csv",
-                mime="text/csv"
+                "⬇ Download Results",
+                new_df.to_csv(index=False),
+                "clustered_customers.csv",
+                "text/csv"
             )
         else:
-            st.error("❌ Uploaded file is missing required columns.")
+            st.error("❌ File missing required columns.")
 
 # ----------------------------------------------------
 # Footer

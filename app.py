@@ -167,16 +167,6 @@ elif menu == "Upload CSV/Excel for Prediction":
         st.subheader("📄 Uploaded Data Preview")
         st.dataframe(new_df.head())
 
-        st.subheader("🔧 Map Columns")
-        cols = new_df.columns.tolist()
-
-        income_col = st.selectbox("Income Column", cols)
-        age_col = st.selectbox("Age Column", cols)
-        recency_col = st.selectbox("Recency Column", cols)
-        web_col = st.selectbox("Web Purchases Column", cols)
-        store_col = st.selectbox("Store Purchases Column", cols)
-        catalog_col = st.selectbox("Catalog Purchases Column", cols)
-
         if st.button("Run Clustering"):
 
             model_df = new_df[

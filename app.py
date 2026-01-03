@@ -1,64 +1,47 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import seaborn as sns
 import matplotlib.pyplot as plt
 import joblib
 
 # ----------------------------------------------------
-# Page config
+# Page configuration
 # ----------------------------------------------------
 st.set_page_config(page_title="Customer Segmentation", layout="wide")
 st.title("📊 Customer Segmentation using K-Means Clustering")
 
 # ----------------------------------------------------
-# Cluster info (3 clusters)
+# Cluster meanings
 # ----------------------------------------------------
-CLUSTER_INFO = {
-    0: {
-        "label": "Low Value Customers",
-        "meaning": "Low income and low engagement",
-        "recommendation": "Run discount and awareness campaigns",
-        "color": "#FF9999"
-    },
-    1: {
-        "label": "High Value Customers",
-        "meaning": "High income and high spending",
-        "recommendation": "Provide premium rewards and loyalty benefits",
-        "color": "#66B2FF"
-    },
-    2: {
-        "label": "Regular Customers",
-        "meaning": "Moderate income and regular purchases",
-        "recommendation": "Upsell and cross-sell products",
-        "color": "#99FF99"
-    }
+CLUSTER_MEANINGS = {
+    0: "Low income, low spending, less active customers",
+    1: "High income, high spending, loyal customers",
+    2: "Medium income, moderate spending, regular customers",
+    3: "High income but low spending, potential customers"
 }
 
 # ----------------------------------------------------
-# Load model
+# Load data and models
 # ----------------------------------------------------
-kmeans = joblib.load("kmeans_model.pkl")   # k=3
+@st.cache_data
+def load_data():
+    return pd.read_csv("final_customer_segmentation_output.csv")
+
+df = load_data()
+kmeans = joblib.load("kmeans_model.pkl")
 scaler = joblib.load("scaler.pkl")
 
 # ----------------------------------------------------
-# Donut chart
+# Prepare visualization columns
 # ----------------------------------------------------
-def plot_donut(series, title):
-    counts = series.value_counts().sort_index()
-    colors = [CLUSTER_INFO[i]["color"] for i in counts.index]
+if 'Final_Cluster' not in df.columns and 'KMeans_Cluster' in df.columns:
+    df['Final_Cluster'] = df['KMeans_Cluster']
 
-    fig, ax = plt.subplots()
-    ax.pie(
-        counts,
-        labels=[f"Cluster {i}" for i in counts.index],
-        autopct="%1.1f%%",
-        startangle=90,
-        colors=colors,
-        wedgeprops=dict(width=0.4, edgecolor="white")
-    )
-    ax.set_title(title)
-    ax.axis("equal")
-    st.pyplot(fig)
+if 'TotalSpending' not in df.columns:
+    spend_cols = [c for c in df.columns if c.startswith('Mnt')]
+    if spend_cols:
+        df['TotalSpending'] = df[spend_cols].sum(axis=1)
 
 # ----------------------------------------------------
 # Sidebar
@@ -66,41 +49,41 @@ def plot_donut(series, title):
 st.sidebar.title("🔧 Menu")
 menu = st.sidebar.radio(
     "Select Option",
-    ["View Clusters", "Predict Customer Cluster", "Upload Dataset & Analyze"]
+    ["View Clusters", "Predict Customer Cluster", "Upload CSV/Excel for Prediction"]
 )
 
 # ====================================================
-# 1️⃣ VIEW CLUSTERS (from trained dataset)
+# VIEW CLUSTERS
 # ====================================================
 if menu == "View Clusters":
 
-    df = pd.read_csv("final_customer_segmentation_output.csv")
-
-    if "Final_Cluster" not in df.columns and "KMeans_Cluster" in df.columns:
-        df["Final_Cluster"] = df["KMeans_Cluster"]
-
-    st.subheader("📄 Dataset Preview")
     st.dataframe(df.head())
 
-    st.subheader("📊 Cluster Distribution")
-    plot_donut(df["Final_Cluster"], "Customer Distribution")
+    st.subheader("📈 Cluster Distribution")
+    st.bar_chart(df['Final_Cluster'].value_counts().sort_index())
 
-    st.subheader("📌 Cluster Insights")
-    for k, v in CLUSTER_INFO.items():
-        st.markdown(
-            f"""
-            **Cluster {k} – {v['label']}**  
-            Meaning: {v['meaning']}  
-            Recommendation: *{v['recommendation']}*
-            """
-        )
+    st.subheader("📊 Cluster Profile")
+    cols = [
+        'Income','TotalSpending','Age','Recency',
+        'NumWebPurchases','NumStorePurchases','NumCatalogPurchases'
+    ]
+    cols = [c for c in cols if c in df.columns]
+    st.dataframe(df.groupby('Final_Cluster')[cols].mean().round(2))
+
+    fig, ax = plt.subplots()
+    sns.boxplot(x='Final_Cluster', y='Income', data=df, ax=ax)
+    st.pyplot(fig)
 
 # ====================================================
-# 2️⃣ SINGLE CUSTOMER PREDICTION
+# SINGLE CUSTOMER PREDICTION
 # ====================================================
 elif menu == "Predict Customer Cluster":
 
-    st.subheader("🧍 Enter Customer Details")
+    st.subheader("📌 Cluster Definitions")
+    for k, v in CLUSTER_MEANINGS.items():
+        st.markdown(f"**Cluster {k}:** {v}")
+
+    st.markdown("---")
 
     income = st.number_input("Income", min_value=0.0)
     age = st.number_input("Age", min_value=18)
@@ -111,31 +94,27 @@ elif menu == "Predict Customer Cluster":
 
     if st.button("Predict Cluster"):
 
-        X = np.array([[
+        X_input = np.array([[
             np.log1p(income),
             age,
             recency,
             web,
             store,
             catalog
-        ]])
+        ]], dtype=float)
 
-        X_scaled = scaler.transform(X)
+        X_scaled = scaler.transform(X_input)
         cluster = int(kmeans.predict(X_scaled)[0])
-        info = CLUSTER_INFO[cluster]
 
-        st.success(f"🎯 Cluster {cluster} – {info['label']}")
-        st.markdown(
-            f"""
-            **Meaning:** {info['meaning']}  
-            **Recommendation:** {info['recommendation']}
-            """
+        st.success(
+            f"🎯 Customer belongs to **Cluster {cluster}**\n\n"
+            f"📌 **Meaning:** {CLUSTER_MEANINGS.get(cluster)}"
         )
 
 # ====================================================
-# 3️⃣ UPLOAD DATASET & ANALYZE (GENERIC & SAFE)
+# ENHANCED CSV / EXCEL UPLOAD (NEW FEATURES)
 # ====================================================
-elif menu == "Upload Dataset & Analyze":
+elif menu == "Upload CSV/Excel for Prediction":
 
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file",
@@ -145,56 +124,58 @@ elif menu == "Upload Dataset & Analyze":
     if uploaded_file is not None:
 
         if uploaded_file.name.endswith(".csv"):
-            df = pd.read_csv(uploaded_file)
+            new_df = pd.read_csv(uploaded_file)
         else:
-            df = pd.read_excel(uploaded_file)
+            new_df = pd.read_excel(uploaded_file)
 
-        st.subheader("📄 Uploaded Dataset Preview")
-        st.dataframe(df.head())
+        st.subheader("📄 Uploaded Data Preview")
+        st.dataframe(new_df.head())
 
-        # Select numeric features
-        numeric_df = df.select_dtypes(include=np.number)
+        st.subheader("🔧 Map Columns (works for any dataset)")
 
-        # Drop ID-like columns
-        numeric_df = numeric_df.drop(
-            columns=[c for c in numeric_df.columns if "id" in c.lower()],
-            errors="ignore"
-        )
+        col_list = new_df.columns.tolist()
 
-        if numeric_df.shape[1] < scaler.n_features_in_:
-            st.error("❌ Not enough numeric features for clustering.")
-        else:
-            # Fill missing values
-            numeric_df = numeric_df.fillna(numeric_df.median())
+        income_col = st.selectbox("Select Income column", col_list)
+        age_col = st.selectbox("Select Age column", col_list)
+        recency_col = st.selectbox("Select Recency column", col_list)
+        web_col = st.selectbox("Select Web Purchases column", col_list)
+        store_col = st.selectbox("Select Store Purchases column", col_list)
+        catalog_col = st.selectbox("Select Catalog Purchases column", col_list)
 
-            # ---- CRITICAL FIX ----
-            X = numeric_df.to_numpy()[:, :scaler.n_features_in_]
-            X_scaled = scaler.transform(X)
+        if st.button("Run Clustering"):
 
-            # Predict clusters
-            df["Cluster"] = kmeans.predict(X_scaled)
-            df["Cluster_Label"] = df["Cluster"].map(
-                lambda x: CLUSTER_INFO[x]["label"]
-            )
+            # Select and rename
+            model_df = new_df[[income_col, age_col, recency_col,
+                                web_col, store_col, catalog_col]].copy()
 
-            st.success("✅ Dataset analyzed successfully!")
+            model_df.columns = [
+                'Income','Age','Recency',
+                'NumWebPurchases','NumStorePurchases','NumCatalogPurchases'
+            ]
 
-            st.subheader("🔍 Analyzed Dataset (First 10 Rows)")
-            st.dataframe(df.head(10))
+            # Handle missing values
+            model_df = model_df.fillna(model_df.median(numeric_only=True))
 
-            st.subheader("📊 Cluster Distribution")
-            plot_donut(df["Cluster"], "Cluster Distribution")
+            X_new = np.column_stack([
+                np.log1p(model_df['Income']),
+                model_df['Age'],
+                model_df['Recency'],
+                model_df['NumWebPurchases'],
+                model_df['NumStorePurchases'],
+                model_df['NumCatalogPurchases']
+            ])
 
-            st.subheader("📌 Recommendations")
-            for k, v in CLUSTER_INFO.items():
-                st.markdown(
-                    f"**Cluster {k} – {v['label']}**: {v['recommendation']}"
-                )
+            X_scaled = scaler.transform(X_new)
+            new_df['Predicted_Cluster'] = kmeans.predict(X_scaled)
+            new_df['Cluster_Meaning'] = new_df['Predicted_Cluster'].map(CLUSTER_MEANINGS)
+
+            st.success("✅ Clustering completed successfully")
+            st.dataframe(new_df.head())
 
             st.download_button(
-                "⬇ Download Clustered Dataset",
-                df.to_csv(index=False),
-                "clustered_output.csv",
+                "⬇ Download Clustered File",
+                new_df.to_csv(index=False),
+                "clustered_customers.csv",
                 "text/csv"
             )
 
@@ -203,4 +184,4 @@ elif menu == "Upload Dataset & Analyze":
 # ----------------------------------------------------
 st.markdown("---")
 st.write("🚀 Deployed using Streamlit Cloud & GitHub")
-st.write("📌 Final Model: K-Means (3 Clusters)")
+st.write("📌 Final Model: K-Means Clustering")

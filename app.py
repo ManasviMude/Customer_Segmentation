@@ -223,5 +223,5 @@ elif menu == "Upload CSV/Excel for Prediction":
 # Footer
 # ----------------------------------------------------
 st.markdown("---")
-st.write("🚀 Deployed using Streamlit Cloud & GitHub")
-st.write("📌 Final Model: K-Means Clustering")
+st.write("Deployed using Streamlit Cloud & GitHub")
+st.write("Final Model: K-Means Clustering")

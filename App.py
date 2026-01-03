@@ -11,7 +11,7 @@ st.set_page_config(page_title="Customer Segmentation", layout="wide")
 st.title("📊 Customer Segmentation using K-Means Clustering")
 
 # ----------------------------------------------------
-# Cluster info (4 CLUSTERS)
+# Cluster info (4 clusters)
 # ----------------------------------------------------
 CLUSTER_INFO = {
     0: {
@@ -41,9 +41,9 @@ CLUSTER_INFO = {
 }
 
 # ----------------------------------------------------
-# Load trained model & scaler (trained with K=4)
+# Load trained model & scaler
 # ----------------------------------------------------
-kmeans = joblib.load("kmeans_model.pkl")
+kmeans = joblib.load("kmeans_model.pkl")   # trained with K=4
 scaler = joblib.load("scaler.pkl")
 
 # ----------------------------------------------------
@@ -75,7 +75,8 @@ menu = st.sidebar.radio(
     [
         "Saved Dataset Analysis",
         "Manual Input & Analysis",
-        "Upload Dataset & Analyze"
+        "Upload Dataset & Analyze",
+        "About"
     ]
 )
 
@@ -144,7 +145,7 @@ elif menu == "Manual Input & Analysis":
         )
 
 # ====================================================
-# 3️⃣ UPLOAD DATASET & ANALYZE (GENERIC)
+# 3️⃣ UPLOAD DATASET & ANALYZE (UPDATED FLOW)
 # ====================================================
 elif menu == "Upload Dataset & Analyze":
 
@@ -160,13 +161,8 @@ elif menu == "Upload Dataset & Analyze":
         else:
             df = pd.read_excel(uploaded_file)
 
-        st.subheader("📄 Uploaded Dataset Preview")
-        st.dataframe(df.head())
-
         # Select numeric columns
         numeric_df = df.select_dtypes(include=np.number)
-
-        # Remove ID-like columns
         numeric_df = numeric_df.drop(
             columns=[c for c in numeric_df.columns if "id" in c.lower()],
             errors="ignore"
@@ -175,10 +171,8 @@ elif menu == "Upload Dataset & Analyze":
         if numeric_df.shape[1] < scaler.n_features_in_:
             st.error("❌ Not enough numeric features for clustering.")
         else:
-            # Handle missing values
             numeric_df = numeric_df.fillna(numeric_df.median())
 
-            # Convert to NumPy (critical fix)
             X = numeric_df.to_numpy()[:, :scaler.n_features_in_]
             X_scaled = scaler.transform(X)
 
@@ -187,19 +181,10 @@ elif menu == "Upload Dataset & Analyze":
                 lambda x: CLUSTER_INFO[x]["label"]
             )
 
-            st.success("✅ Dataset analyzed successfully!")
-
-            st.subheader("🔍 Analyzed Dataset (First 10 Rows)")
-            st.dataframe(df.head(10))
+            st.success("✅ Dataset clustered successfully!")
 
             st.subheader("📊 Cluster Distribution (Donut Chart)")
             plot_donut(df["Cluster"], "Uploaded Dataset Cluster Distribution")
-
-            st.subheader("📌 Cluster-wise Recommendations")
-            for k, info in CLUSTER_INFO.items():
-                st.markdown(
-                    f"**Cluster {k} – {info['label']}**: {info['recommendation']}"
-                )
 
             st.download_button(
                 "⬇ Download Clustered Dataset",
@@ -207,6 +192,44 @@ elif menu == "Upload Dataset & Analyze":
                 "clustered_dataset.csv",
                 "text/csv"
             )
+
+# ====================================================
+# 4️⃣ ABOUT SECTION
+# ====================================================
+elif menu == "About":
+
+    st.subheader("ℹ️ About This Application")
+
+    st.markdown("""
+    ### 📊 Customer Segmentation using K-Means Clustering
+
+    This application performs **customer segmentation** using an **unsupervised machine learning model (K-Means)**.
+
+    #### 🔹 Key Features
+    - Saved dataset analysis with visual insights
+    - Manual customer-level cluster prediction
+    - Generic dataset upload & clustering
+    - Donut chart visualizations with percentages
+    - Business-friendly cluster interpretations
+    - Downloadable clustered datasets
+
+    #### 🔹 Model Details
+    - Algorithm: K-Means Clustering
+    - Number of clusters: **4**
+    - Scaling technique: StandardScaler
+    - Handles missing values automatically
+
+    #### 🔹 Technology Stack
+    - Python
+    - Pandas, NumPy
+    - Scikit-learn
+    - Streamlit
+    - Matplotlib
+
+    #### 🔹 Deployment
+    - Hosted on **Streamlit Cloud**
+    - Version-controlled using **GitHub**
+    """)
 
 # ----------------------------------------------------
 # Footer
